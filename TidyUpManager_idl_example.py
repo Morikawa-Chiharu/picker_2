@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # -*- Python -*-
 
@@ -14,6 +14,14 @@ import omniORB
 from omniORB import CORBA, PortableServer
 import ogata, ogata__POA
 
+import TidyUpManager_idl
+import ManipulatorCommonInterface_DataTypes_idl
+import ManipulatorCommonInterface_MiddleLevel_idl
+import ManipulatorCommonInterface_Common_idl
+
+import RGBDCamera
+import OpenRTM_aist
+
 import os, math
 import keras
 from keras.utils import np_utils
@@ -27,7 +35,8 @@ from keras.preprocessing.image import array_to_img, img_to_array, load_img
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-# import matplotlib.pyplot as plt
+# import matplotlib.pyplot aplt
+
 
 # Import Service implementation class
 # <rtc-template block="service_impl">
@@ -98,7 +107,53 @@ class Picker_i (ogata__POA.Picker):
         @brief standard constructor
         Initialise member variables here
         """
-        pass
+        camera_arg = [None] * ((len(RGBDCamera._d_TimedRGBDCameraImage) - 4) // 2)
+        #self._d_camera = Img.TimedCameraImage(*camera_arg)
+        self._d_camera = RGBDCamera.TimedRGBDCameraImage(*camera_arg)
+        """
+        """
+        self._cameraIn = OpenRTM_aist.InPort("camera", self._d_camera)
+
+        """
+        """
+        self._manipCommonPort = OpenRTM_aist.CorbaPort("manipCommon")
+        """
+        """
+        self._manipMiddlePort = OpenRTM_aist.CorbaPort("manipMiddle")
+
+        
+
+        """
+        """
+        self._manipCommon = OpenRTM_aist.CorbaConsumer(interfaceType=JARA_ARM.ManipulatorCommonInterface_Common)
+        """
+        """
+        self._manipMiddle = OpenRTM_aist.CorbaConsumer(interfaceType=JARA_ARM.ManipulatorCommonInterface_Middle)
+
+        # initialize of configuration-data.
+        # <rtc-template block="init_conf_param">
+        """
+        
+         - Name:  debug
+         - DefaultValue: 1
+        """
+        self._debug = [1]
+
+        self._model = None
+        
+        """
+        
+         - Name:  gripper_close_ratio
+         - DefaultValue: 0.1
+        """
+        self._gripper_close_ratio = [0.1]
+
+        self._model = None
+
+        # Set service consumers to Ports
+        self._manipCommonPort.registerConsumer("JARA_ARM_ManipulatorCommonInterface_Common", "JARA_ARM::ManipulatorCommonInterface_Common", self._manipCommon)
+        self._manipMiddlePort.registerConsumer("JARA_ARM_ManipulatorCommonInterface_Middle", "JARA_ARM::ManipulatorCommonInterface_Middle", self._manipMiddle)
+        
 
     # RETURN_VALUE pick(in RTC::TimedString kind)
     def pick(self, kind):
@@ -106,25 +161,31 @@ class Picker_i (ogata__POA.Picker):
         # *** Implement me
         # Must return: result
         #モデルとパラメータの読み込み
-        if kind=="PET":
+        if kind.data=="PET":
+            print("get data;PET")
  
             self._model = model_from_json(open('model_log_pet.json', 'r').read())
             print('pet model loaded')
             self._model.compile(loss='mean_squared_error',optimizer='SGD',metrics=['accuracy'])
             self._model.load_weights('param_pet.hdf5')
             print('pet weight loaded')
-        elif kind=="LEGO":
+        elif kind.data=="LEGO":
+            print("get data;LEGO")
+
             self._model = model_from_json(open('model_log_lego.json', 'r').read())
             print('lego model loaded')
             self._model.compile(loss='mean_squared_error',optimizer='SGD',metrics=['accuracy'])
             self._model.load_weights('param_lego.hdf5')
             print('lego weight loaded')
         else:
-
-            return RETVAL_UNKNOWN_ERROR
+            print("unexpected word")
+            print(kind)
+            return ogata.RETVAL_UNKNOWN_ERROR
 
         self._manipCommon._ptr().servoON()
+        print("orochi arm servo on")
         self._manipMiddle._ptr().setSpeedJoint(30)
+        print("set speed")
 
         self._manipMiddle._ptr().movePTPJointAbs([0, math.pi/4,math.pi/4, 0, math.pi/2, 0])
         self._manipMiddle._ptr().moveGripper(80)
@@ -191,10 +252,11 @@ class Picker_i (ogata__POA.Picker):
         carPos.carPos[2][3] = z
         self._manipMiddle._ptr().movePTPCartesianAbs(carPos)
         time.sleep(1.0)
+        print("done")
 
         self._manipMiddle._ptr().movePTPJointAbs([0, math.pi/4,math.pi/4, 0, math.pi/2, 0])
 
-        return RETVAL_OK
+        return ogata.RETVAL_OK
 
 
 
@@ -256,4 +318,5 @@ if __name__ == "__main__":
 
     # Run the ORB, blocking this thread
     orb.run()
+
 
