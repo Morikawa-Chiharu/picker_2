@@ -1,0 +1,49 @@
+#ifndef TIDYUPMANAGER_IDL_INCLUDED
+#define TIDYUPMANAGER_IDL_INCLUDED
+
+
+#include "BasicDataType.idl"
+#include "ExtendedDataTypes.idl"
+
+module ogata {
+
+  enum RETURN_VALUE {
+	// COMMON
+	RETVAL_OK,
+	RETVAL_INVALID_PARAMETER,
+	RETVAL_EMPTY_MAP,
+	RETVAL_INVALID_PRECONDITION,
+	RETVAL_NOT_IMPL,
+	RETVAL_UNKNOWN_ERROR,
+	RETVAL_NOT_FOUND,
+
+	RETVAL_ODOMETRY_INVALID_VALUE,
+	RETVAL_ODOMETRY_TIME_OUT,
+	RETVAL_RANGE_INVALID_VALUE,
+	RETVAL_RANGE_TIME_OUT,
+
+	RETVAL_EMERGENCY_STOP,
+	RETVAL_OUTOF_RANGE
+
+  };
+
+  interface TidyUpManager {
+    RETURN_VALUE tidyup(in RTC::TimedPose2D path, in RTC::TimedString kind);
+  };
+
+  interface StringNavigationCommanderService {
+	RETURN_VALUE move(in RTC::TimedPose2D path);
+  };
+
+  interface Picker {
+	RETURN_VALUE pick(in RTC::TimedString kind);
+  };
+
+  interface Droper {
+	RETURN_VALUE drop(in RTC::TimedString kind);
+  };
+};
+
+
+
+#endif
