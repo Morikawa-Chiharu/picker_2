@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # -*- Python -*-
 
@@ -95,7 +95,9 @@ class ArmImagePredictor_Keras(OpenRTM_aist.DataFlowComponentBase):
 		"""
 		"""
 		self._TidyUpManager = Picker_i()
-		
+
+                # ここでRTCの参照を設定する
+                self._TidyUpManager.set_rtc(self)
 
 		"""
 		"""
@@ -300,7 +302,110 @@ class ArmImagePredictor_Keras(OpenRTM_aist.DataFlowComponentBase):
 	#def onRateChanged(self, ec_id):
 	#
 	#	return RTC.RTC_OK
-	
+        def pick(self, kind):
+                # ysuga 修正
+                # この部分，Picker_iのpickメソッドからコピペした．
+                # インデントが間違っているかもしれないので修正すること
+                #モデルとパラメータの読み込み
+                if kind.data=="PET":
+                        print("get data;PET")
+                        
+                        self._model = model_from_json(open('model_log_pet.json', 'r').read())
+                        print('pet model loaded')
+                        self._model.compile(loss='mean_squared_error',optimizer='SGD',metrics=['accuracy'])
+                        self._model.load_weights('param_pet.hdf5')
+                        print('pet weight loaded')
+                elif kind.data=="LEGO":
+                        print("get data;LEGO")
+
+                        self._model = model_from_json(open('model_log_lego.json', 'r').read())
+                        print('lego model loaded')
+                        self._model.compile(loss='mean_squared_error',optimizer='SGD',metrics=['accuracy'])
+                        self._model.load_weights('param_lego.hdf5')
+                        print('lego weight loaded')
+                else:
+                        print("unexpected word")
+                        print(kind)
+                        return ogata.RETVAL_UNKNOWN_ERROR
+
+                self._manipCommon._ptr().servoON()
+                print("orochi arm servo on")
+                self._manipMiddle._ptr().setSpeedJoint(30)
+                print("set speed")
+
+                self._manipMiddle._ptr().movePTPJointAbs([0, math.pi/4,math.pi/4, 0, math.pi/2, 0])
+                self._manipMiddle._ptr().moveGripper(80)
+
+                if self._cameraIn.isNew():
+                        data = self._cameraIn.read()
+                        w = data.data.cameraImage.image.width
+                        h = data.data.cameraImage.image.height
+                        cimg = np.ndarray(shape=(h, w, 3), dtype=float)
+                        csize = len(data.data.cameraImage.image.raw_data)
+
+                for i in range(0,w*h):
+                        cimg[i//w, i%w, 0] = data.data.cameraImage.image.raw_data[i*3+0]
+                        cimg[i//w, i%w, 1] = data.data.cameraImage.image.raw_data[i*3+1]
+                        cimg[i//w, i%w, 2] = data.data.cameraImage.image.raw_data[i*3+2]
+                        pass
+
+                dw = data.data.depthImage.width
+p                dh = data.data.depthImage.height
+                dimg = np.ndarray(shape=(dh, dw), dtype=float)
+                dsize = len(data.data.depthImage.raw_data)
+                for i in range(dh):
+                        for j in range(dw):
+                                dimg[i, j] = data.data.depthImage.raw_data[i*dw + j]
+                                pass
+
+                dimg = depth_image_to_cv2_image(dimg)
+                cv2.imwrite('depth_img.png' ,dimg)
+                cv2.imwrite('rgb_img.png', cimg)
+                
+                cimg = cv2.resize(cimg, (64, 64))
+                dimg = cv2.resize(dimg, (64, 64))
+                dimg = np.reshape(dimg, (64,64,1))
+                img3 = np.c_[cimg, dimg]
+                print(img3.shape)
+                result = self._model.predict(np.asarray([img3/256]))
+                x = result[0][0]*0.12 + 0.12
+                y = result[0][1]*0.24 - 0.12
+                th = result[0][2]*2*math.pi-math.pi
+                print(result)
+                print(x)
+                print(y)
+                print(th)
+
+                z = -100.25 / 1000.0
+                z_min = -130.00 / 1000.0
+                s2 = math.sin(th)
+                c2 = math.cos(th)
+                carPos = JARA_ARM.CarPosWithElbow([[0,0,0,0],[0,0,0,0],[0,0,0,0]], 1.0, 1)
+                carPos.carPos[0][0] = -c2;  carPos.carPos[0][1] = s2; carPos.carPos[0][2] =  0.0; carPos.carPos[0][3] = x;
+                carPos.carPos[1][0] =  s2;  carPos.carPos[1][1] = c2; carPos.carPos[1][2] =  0.0; carPos.carPos[1][3] = y;
+                carPos.carPos[2][0] =  0.0; carPos.carPos[2][1] = 0; carPos.carPos[2][2] = -1.0; carPos.carPos[2][3] = z;
+                self._manipMiddle._ptr().movePTPCartesianAbs(carPos)
+                
+                time.sleep(1.0)
+
+                carPos.carPos[2][3] = z_min
+            
+                self._manipMiddle._ptr().movePTPCartesianAbs(carPos)
+p                time.sleep(1.0)
+
+                self._manipMiddle._ptr().moveGripper(30)
+                time.sleep(1.0)
+                carPos.carPos[2][3] = z
+                self._manipMiddle._ptr().movePTPCartesianAbs(carPos)
+                time.sleep(1.0)
+                print("done")
+
+                self._manipMiddle._ptr().movePTPJointAbs([0, math.pi/4,math.pi/4, 0, math.pi/2, 0])
+
+                return ogata.RETVAL_OK
+                
+
+
 
 
 
