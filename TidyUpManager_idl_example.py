@@ -109,7 +109,7 @@ class Picker_i (ogata__POA.Picker):
         """
         # ysuga修正
         # ここに書いてあったRTCの初期化コードのコピペは無意味
-
+        pass
     def set_rtc(self, rtc):
         self._rtc = rtc
 
@@ -122,6 +122,7 @@ class Picker_i (ogata__POA.Picker):
         # ysuga修正
         # ここで処理をしない．RTCのonExecuteなどでやること
         self._rtc.pick(kind)
+        return ogata.RETVAL_OK
         
         
 
